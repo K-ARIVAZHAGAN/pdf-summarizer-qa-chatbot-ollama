@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Summarizer and Q&A</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            max-width: 80%;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+        #summary-container {
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            background-color: #fff;
+        }
+        .tab-content {
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">PDF Summarizer and Q&A</h1>
+        
+        <!-- File Upload Section -->
+        <div class="mb-4">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="pdfFile" class="form-label">Upload a PDF file</label>
+                    <input type="file" class="form-control" id="pdfFile" accept=".pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+            <div id="uploadStatus" class="mt-2"></div>
+        </div>
+        
+        <!-- Tabs for Summarize and Q&A -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">Summarize</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="qa-tab" data-bs-toggle="tab" data-bs-target="#qa" type="button" role="tab" aria-controls="qa" aria-selected="false">Q&A</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <!-- Summary Tab -->
+            <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                <button id="summarizeBtn" class="btn btn-success mb-3" disabled>Generate Summary</button>
+                <div id="summary-container">
+                    <p class="text-muted">Summary will appear here after you upload a PDF and click "Generate Summary"</p>
+                </div>
+            </div>
+            
+            <!-- Q&A Tab -->
+            <div class="tab-pane fade" id="qa" role="tabpanel" aria-labelledby="qa-tab">
+                <div class="chat-container" id="chatMessages">
+                    <div class="assistant-message">
+                        Hello! I can answer questions based on the uploaded PDF. Please upload a PDF first.
+                    </div>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="userQuestion" class="form-control" placeholder="Ask a question about the PDF..." disabled>
+                    <button id="sendBtn" class="btn btn-primary" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForm = document.getElementById('uploadForm');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const summarizeBtn = document.getElementById('summarizeBtn');
+            const summaryContainer = document.getElementById('summary-container');
+            const userQuestion = document.getElementById('userQuestion');
+            const sendBtn = document.getElementById('sendBtn');
+            const chatMessages = document.getElementById('chatMessages');
+            
+            // Handle file upload
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const fileInput = document.getElementById('pdfFile');
+                if (!fileInput.files[0]) {
+                    uploadStatus.innerHTML = '<div class="alert alert-danger">Please select a file</div>';
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                uploadStatus.innerHTML = '<div class="alert alert-info">Uploading...</div>';
+                
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        uploadStatus.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                        summarizeBtn.disabled = false;
+                        userQuestion.disabled = false;
+                        sendBtn.disabled = false;
+                        chatMessages.innerHTML = '<div class="assistant-message">PDF uploaded successfully! What would you like to know about it?</div>';
+                    } else {
+                        uploadStatus.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    uploadStatus.innerHTML = `<div class="alert alert-danger">Error: ${error}</div>`;
+                });
+            });
+            
+            // Generate summary
+            summarizeBtn.addEventListener('click', function() {
+                summaryContainer.innerHTML = '<p class="text-muted">Generating summary...</p>';
+                
+                fetch('/summarize')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.summary) {
+                        summaryContainer.innerHTML = `<p>${data.summary}</p>`;
+                    } else {
+                        summaryContainer.innerHTML = `<p class="text-danger">${data.error}</p>`;
+                    }
+                })
+                .catch(error => {
+                    summaryContainer.innerHTML = `<p class="text-danger">Error: ${error}</p>`;
+                });
+            });
+            
+            // Send question
+            sendBtn.addEventListener('click', function() {
+                sendQuestion();
+            });
+            
+            userQuestion.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendQuestion();
+                }
+            });
+            
+            function sendQuestion() {
+                const question = userQuestion.value.trim();
+                if (!question) return;
+                
+                // Add user message to chat
+                chatMessages.innerHTML += `<div class="user-message">${question}</div>`;
+                chatMessages.innerHTML += `<div class="assistant-message" id="loading-message">Thinking...</div>`;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                userQuestion.value = '';
+                
+                fetch('/qa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({query: question})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove loading message
+                    document.getElementById('loading-message').remove();
+                    
+                    if (data.response) {
+                        chatMessages.innerHTML += `<div class="assistant-message">${data.response}</div>`;
+                    } else {
+                        chatMessages.innerHTML += `<div class="assistant-message text-danger">${data.error}</div>`;
+                    }
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                })
+                .catch(error => {
+                    document.getElementById('loading-message').remove();
+                    chatMessages.innerHTML += `<div class="assistant-message text-danger">Error: ${error}</div>`;
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                });
+            }
+        });
+    </script>
+</body>
+</html>
